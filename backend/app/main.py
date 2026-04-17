@@ -17,7 +17,8 @@ else:
 
 
 APP_NAME = "Apollo Krishi Rakshak Inference API"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
+ENGINE_REVISION = "2026-04-17-bilingual-r1"
 MODEL_DIR = os.getenv("APOLLO_MODEL_DIR", os.path.join(os.path.dirname(__file__), "..", "models"))
 ALLOWED_ORIGINS = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",") if x.strip()]
 DEFAULT_DISEASE_CROP = os.getenv("APOLLO_DEFAULT_DISEASE_CROP", "wheat").strip().lower()
@@ -372,9 +373,88 @@ def _recommendation(crop_name: str, disease_label: str, top_predictions: Optiona
     )
 
 
+def _recommendation_marathi(crop_name: str, disease_label: str, top_predictions: Optional[list] = None) -> str:
+    crop_map = {
+        "wheat": "गहू",
+        "rice": "तांदूळ",
+        "cotton": "कापूस",
+    }
+    disease_map = {
+        "healthy": "निरोगी",
+        "possible_early_stage_disease": "प्रारंभिक टप्प्यातील संभाव्य रोग",
+        "rust": "रस्ट",
+        "blight": "ब्लाइट",
+        "tan_spot": "टॅन स्पॉट",
+        "powdery_mildew": "पावडरी मिल्ड्यू",
+        "mite": "माइट प्रादुर्भाव",
+        "nutrient_deficiency": "पोषक तुटवडा",
+        "leaf_blast": "लीफ ब्लास्ट",
+        "brown_spot": "ब्राउन स्पॉट",
+        "sheath_blight": "शीथ ब्लाइट",
+    }
+
+    crop_mr = crop_map.get(crop_name.lower().strip(), crop_name)
+    disease_key = disease_label.lower().strip()
+    disease_mr = disease_map.get(disease_key, disease_label)
+
+    if disease_key == "possible_early_stage_disease":
+        likely = []
+        if top_predictions:
+            for pred in top_predictions:
+                raw = str(pred.get("label", ""))
+                norm = _normalize_disease_label(crop_name, raw)
+                conf = float(pred.get("confidence", 0.0))
+                if norm == "healthy":
+                    continue
+                likely.append((norm, conf))
+            likely.sort(key=lambda x: x[1], reverse=True)
+
+        likely_lines = []
+        for idx, (name, conf) in enumerate(likely[:3], start=1):
+            likely_lines.append(f"{idx}. {disease_map.get(name, name)} ({conf:.2%})")
+
+        likely_section = (
+            "\n".join(likely_lines)
+            if likely_lines
+            else "विशिष्ट रोग संकेत कमी आहेत; तरीही काळजीपूर्वक निरीक्षण करा."
+        )
+
+        return (
+            "**निदान: प्रारंभिक टप्प्यातील संभाव्य रोग (अनिश्चित)**\n\n"
+            f"स्थिती: {crop_mr} पिकात निरोगी नमुना जास्त दिसतो, पण कमी पातळीवर रोग संकेत आढळले.\n\n"
+            "संभाव्य रोग (क्रमवारी):\n"
+            f"{likely_section}\n\n"
+            "पुढील 72 तासांसाठी कृती योजना:\n"
+            "1. वेगवेगळ्या भागातील 3-5 पाने पुन्हा स्कॅन करा.\n"
+            "2. पानांच्या खालच्या बाजूस पावडरी थर, माइट, रस्ट ठिपके तपासा.\n"
+            "3. लक्षणे वाढल्यास स्थानिक कृषी सल्ल्यानुसार योग्य फवारणी करा.\n"
+            "4. दररोज फोटो नोंद ठेवा व प्रसार मोजा.\n"
+            "5. अंतिम निर्णयासाठी कृषी तज्ञांचा सल्ला घ्या."
+        )
+
+    if disease_key == "healthy":
+        return (
+            f"**निदान: निरोगी ({crop_mr})**\n\n"
+            "लक्षणे: सध्या गंभीर रोग लक्षणे आढळली नाहीत.\n"
+            "व्यवस्थापन: नियमित निरीक्षण, संतुलित पाणी व पोषण व्यवस्थापन चालू ठेवा.\n"
+            "प्रतिबंध: साप्ताहिक फील्ड स्काउटिंग आणि हवामानानुसार प्रतिबंधक उपाय करा."
+        )
+
+    return (
+        f"**निदान: {disease_mr}**\n\n"
+        f"स्थिती: {crop_mr} पिकात रोगाचे संकेत आढळले.\n\n"
+        "काय करावे:\n"
+        "1. प्रभावित भाग वेगळा चिन्हांकित करा.\n"
+        "2. जवळच्या झाडांवर लक्षणे तपासा.\n"
+        "3. स्थानिक कृषी तज्ञ/अधिकाऱ्यांच्या मार्गदर्शनानुसार उपचार करा.\n"
+        "4. 24-48 तासांनी पुन्हा निरीक्षण करा.\n"
+        "5. रोग वाढल्यास तातडीने नियंत्रण उपाय वाढवा."
+    )
+
+
 @app.get("/")
 def root() -> Dict[str, str]:
-    return {"service": APP_NAME, "version": APP_VERSION, "status": "running"}
+    return {"service": APP_NAME, "version": APP_VERSION, "revision": ENGINE_REVISION, "status": "running"}
 
 
 @app.get("/health")
@@ -393,6 +473,7 @@ def health() -> Dict[str, object]:
         "healthy_strict_threshold": HEALTHY_STRICT_THRESHOLD,
         "top_k_predictions": TOP_K_PREDICTIONS,
         "version": APP_VERSION,
+        "revision": ENGINE_REVISION,
     }
 
 
@@ -431,7 +512,19 @@ async def detect(file: UploadFile = File(...), crop: Optional[str] = Form(defaul
                 str(disease_result["disease"]),
                 top_predictions=disease_result.get("top_predictions"),
             ),
+            "recommendation_en": _recommendation(
+                crop_name,
+                str(disease_result["disease"]),
+                top_predictions=disease_result.get("top_predictions"),
+            ),
+            "recommendation_mr": _recommendation_marathi(
+                crop_name,
+                str(disease_result["disease"]),
+                top_predictions=disease_result.get("top_predictions"),
+            ),
             "model_dir": os.path.abspath(MODEL_DIR),
+            "version": APP_VERSION,
+            "revision": ENGINE_REVISION,
         }
         notes = []
         if fallback_note:
