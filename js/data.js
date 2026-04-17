@@ -1,5 +1,5 @@
 const APOLLO_CONFIG = {
-  defaultInferenceApi: ""
+  defaultInferenceApi: "https://api.apollokrushi.chatakeinnoworks.com/api/detect"
 };
 
 const APOLLO_STUDENTS = [
