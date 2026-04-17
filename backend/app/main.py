@@ -128,6 +128,35 @@ def _predict_crop(image_tensor: np.ndarray) -> Tuple[str, float]:
     return crop_name, confidence
 
 
+def _normalize_disease_label(crop_name: str, raw_label: str) -> str:
+    label = raw_label.lower().strip().replace("-", "_").replace(" ", "_")
+    crop = crop_name.lower().strip()
+
+    if label.startswith(f"{crop}_"):
+        label = label[len(crop) + 1 :]
+
+    # Handle combined labels like wheat_healthywheatleaf or healthy_wheat_leaf
+    if "healthy" in label:
+        return "healthy"
+    if "rust" in label:
+        return "rust"
+    if "blight" in label:
+        return "blight"
+    if "tan" in label and "spot" in label:
+        return "tan_spot"
+    if "powder" in label and "mildew" in label:
+        return "powdery_mildew"
+    if "deficiency" in label or "nutrient" in label:
+        return "nutrient_deficiency"
+    if "blast" in label:
+        return "leaf_blast"
+    if "brown" in label and "spot" in label:
+        return "brown_spot"
+    if "sheath" in label and "blight" in label:
+        return "sheath_blight"
+    return label
+
+
 def _predict_disease(crop_name: str, image_tensor: np.ndarray) -> Dict[str, object]:
     model, classes = _load_disease_assets(crop_name)
     preds = model.predict(image_tensor, verbose=0)[0]
@@ -142,7 +171,8 @@ def _predict_disease(crop_name: str, image_tensor: np.ndarray) -> Dict[str, obje
     ]
 
     top_1 = top_predictions[0]
-    top_1_label = str(top_1["label"])
+    top_1_label_raw = str(top_1["label"])
+    top_1_label = _normalize_disease_label(crop_name, top_1_label_raw)
     top_1_conf = float(top_1["confidence"])
     non_healthy_risk = sum(
         float(pred["confidence"]) for pred in top_predictions if "healthy" not in str(pred["label"]).lower()
@@ -169,6 +199,7 @@ def _predict_disease(crop_name: str, image_tensor: np.ndarray) -> Dict[str, obje
     diagnosis_quality = "high" if final_conf >= 0.85 else "medium" if final_conf >= 0.65 else "low"
 
     return {
+        "raw_disease": top_1_label_raw,
         "disease": final_label,
         "disease_confidence": final_conf,
         "top_predictions": top_predictions,
@@ -337,6 +368,7 @@ async def detect(file: UploadFile = File(...), crop: Optional[str] = Form(defaul
         response = {
             "crop": crop_name,
             "crop_confidence": crop_conf,
+            "raw_disease": disease_result["raw_disease"],
             "disease": disease_result["disease"],
             "disease_confidence": disease_result["disease_confidence"],
             "top_predictions": disease_result["top_predictions"],

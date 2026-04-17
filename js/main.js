@@ -211,26 +211,63 @@ async function mountWeatherNode() {
 function mockInference(fileName, cropInput) {
   const crop = (cropInput || "wheat").toLowerCase();
   const confidence = (87 + Math.random() * 10).toFixed(2);
-  const issues = [
-    "Healthy leaf pattern",
-    "Mild nutrient stress",
-    "Possible fungal risk",
-    "Moisture imbalance"
-  ];
-  const advice = {
-    wheat: "Monitor irrigation cycle and inspect lower leaves in next 24h.",
-    rice: "Schedule nutrient check and verify standing water consistency.",
-    cotton: "Inspect underside for early pest signature and tune spray schedule.",
-    default: "Perform field scan and cross-validate with disease model service."
+  const issues = {
+    wheat: [
+      "possible_early_stage_disease",
+      "rust",
+      "tan_spot",
+      "nutrient_deficiency"
+    ],
+    rice: ["leaf_blast", "brown_spot", "sheath_blight"],
+    cotton: ["bacterial_blight", "fusarium_wilt", "spider_mite_damage"]
   };
+  const knowledge = {
+    healthy: {
+      symptoms: "No major lesions detected. Leaf texture and color are within healthy tolerance.",
+      management: "Continue normal irrigation and weekly scouting.",
+      prevention: "Maintain resistant seeds and balanced nutrients."
+    },
+    possible_early_stage_disease: {
+      symptoms: "Early-stage stress pattern detected; disease cannot be ruled out.",
+      management: "Inspect nearby plants, isolate high-risk patch, and re-scan in 24-48 hours.",
+      prevention: "Use preventive fungicide strategy based on local agronomy guidance."
+    },
+    rust: {
+      symptoms: "Orange-brown pustules may appear in clusters, especially in humid conditions.",
+      management: "Apply recommended triazole/strobilurin fungicide and scout top 3 leaves.",
+      prevention: "Use rust-resistant cultivars and avoid excessive late nitrogen."
+    },
+    tan_spot: {
+      symptoms: "Tan lesions with dark center and yellow halo can reduce photosynthetic area.",
+      management: "Use targeted foliar fungicide and assess residue-borne carryover.",
+      prevention: "Crop rotation and residue management are key controls."
+    },
+    nutrient_deficiency: {
+      symptoms: "General chlorosis and uneven leaf tone indicate nutrient imbalance.",
+      management: "Run soil and tissue test, then apply crop-stage specific nutrition.",
+      prevention: "Follow split-dose fertilizer planning and pH correction."
+    }
+  };
+
+  const cropIssues = issues[crop] || ["possible_early_stage_disease", "healthy"];
+  const disease = cropIssues[Math.floor(Math.random() * cropIssues.length)];
+  const info = knowledge[disease] || knowledge.possible_early_stage_disease;
 
   return {
     mode: "demo",
     file: fileName,
     crop,
-    confidence,
-    finding: issues[Math.floor(Math.random() * issues.length)],
-    recommendation: advice[crop] || advice.default
+    crop_confidence: Number(confidence) / 100,
+    disease,
+    disease_confidence: Number((0.62 + Math.random() * 0.3).toFixed(4)),
+    diagnosis_quality: "demo",
+    needs_human_review: disease === "possible_early_stage_disease",
+    top_predictions: [
+      { label: disease, confidence: 0.78 },
+      { label: "healthy", confidence: 0.16 },
+      { label: "nutrient_deficiency", confidence: 0.06 }
+    ],
+    recommendation: `SYMPTOMS: ${info.symptoms}\n\nMANAGEMENT & TREATMENT: ${info.management}\n\nPREVENTION: ${info.prevention}`
   };
 }
 
