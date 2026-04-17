@@ -135,14 +135,115 @@ def _predict_disease(crop_name: str, image_tensor: np.ndarray) -> Tuple[str, flo
 
 
 def _recommendation(crop_name: str, disease_label: str) -> str:
-    disease = disease_label.lower()
-    if "healthy" in disease:
-        return f"{crop_name.title()} appears healthy. Continue scheduled monitoring and irrigation balance."
-    if "rust" in disease or "blight" in disease or "fung" in disease:
-        return "Potential fungal risk detected. Inspect surrounding plants and begin targeted treatment workflow."
-    if "deficiency" in disease or "nutrient" in disease:
-        return "Nutrient stress pattern detected. Run soil and leaf nutrition checks before next intervention cycle."
-    return "Anomaly detected. Trigger a field review and confirm with agronomy specialist workflow."
+    """Comprehensive disease recommendation with symptoms, management, and prevention."""
+    disease = disease_label.lower().strip()
+    
+    # Disease Information Database
+    disease_db = {
+        "wheat": {
+            "healthy": {
+                "symptoms": "No visible disease signs. Leaf tissue appears normal with green coloration.",
+                "management": "Continue regular monitoring. Maintain optimal irrigation (55-60mm during growth). Scout fields weekly for early disease detection.",
+                "prevention": "Rotate crops to break disease cycles. Use resistant varieties. Monitor weather for humidity spikes."
+            },
+            "rust": {
+                "symptoms": "Orange-brown or yellow pustules on leaf surfaces. Develop rapidly in 15-20°C with high humidity. Three types: leaf rust (small orange pustules), stripe rust (lemon-yellow striped), stem rust (dark reddish-brown).",
+                "management": "Apply foliar fungicides (Propiconazole, Azoxystrobin) when disease appears on top 3 leaves. Early application critical. Repeat every 10-14 days if conditions favor spread.",
+                "prevention": "Plant rust-resistant varieties (Lok-1, Raj-3961 in India). Space plants for air circulation. Avoid overhead irrigation in evening."
+            },
+            "blight": {
+                "symptoms": "Water-soaked lesions that turn brown/gray. May have yellow halo. Often starts on lower leaves and moves upward.",
+                "management": "Remove infected leaves. Apply copper-based fungicides (Bordeaux mixture 1%) or systemic fungicides (Mancozeb). Spray every 7-10 days during wet season.",
+                "prevention": "Improve drainage. Avoid dense planting. Remove plant debris. Use disease-free seed."
+            },
+            "tan_spot": {
+                "symptoms": "Tan, lens-shaped lesions (2-4mm) with yellow halo and dark center spot. Highly visible on flag leaves.",
+                "management": "Fungicide application at boot stage (critical). Use Pyraclostrobin, Propiconazole, or Azoxystrobin. Two sprays 2 weeks apart effective.",
+                "prevention": "Rotate crops (minimum 2 years without wheat). Incorporate wheat residue to reduce inoculum. Use resistant varieties."
+            },
+            "powdery_mildew": {
+                "symptoms": "White to grayish powdery coating on leaves and stems. Occurs in cool, dry conditions. Reduces photosynthesis.",
+                "management": "Sulfur dust (10kg/ha) or wettable sulfur spray. Alternate with Karathane (0.1%) if sulfur resistance develops. Apply at first sign.",
+                "prevention": "Improve air circulation. Reduce nitrogen fertilizer (promotes susceptibility). Choose resistant varieties."
+            },
+            "nutrient_deficiency": {
+                "symptoms": "Leaf yellowing (Nitrogen: older leaves first), purple tinting (Phosphorus), chlorosis (Iron). Stunted growth common.",
+                "management": "Conduct soil and leaf tissue testing. Nitrogen: apply 25-50kg/ha urea. Phosphorus: 60-80kg/ha DAP. Micronutrients via foliar spray (2% solution).",
+                "prevention": "Balanced fertilizer schedule. Soil pH 6.0-7.5 optimal. Organic matter addition improves nutrient availability."
+            }
+        },
+        "rice": {
+            "healthy": {
+                "symptoms": "Uniform green color, upright growth, no lesions or discoloration present.",
+                "management": "Maintain 5-7cm standing water during growing season. Monitor for pests weekly. Nitrogen timing critical at tillering and panicle initiation.",
+                "prevention": "Certified disease-free seed. Sanitation of field equipment. Proper water management."
+            },
+            "leaf_blast": {
+                "symptoms": "Eye-shaped lesions with gray center and brown/purple border. Start on lower leaves. Severe cases cause leaf death.",
+                "management": "Apply Tricyclazole (0.6%) or Propiconazole at first sign. Spray 2-3 times at 10-day intervals. Most critical before heading.",
+                "prevention": "Use blast-resistant varieties. Avoid excess nitrogen. Maintain balanced potassium. Ensure proper drainage."
+            },
+            "brown_spot": {
+                "symptoms": "Dark brown spots (1-3mm) with yellow border. Numerous lesions coalesce causing leaf browning. Associated with nutrient deficiency.",
+                "management": "Improve plant nutrition (especially Potassium: 40-60kg MOP/ha). Fungicide spray if severe (Mancozeb 0.25%).",
+                "prevention": "Balanced fertilization. Use resistant varieties. Disease-free seed treatment with fungicide."
+            },
+            "sheath_blight": {
+                "symptoms": "Oblong lesions on leaf sheath, water-soaked appearance. Gray-white mycelium visible. Spread via contact to upper leaves.",
+                "management": "Remove infected tillers. Fungicide spray (Hexaconazole 5%, Trifloxystrobin 0.5%) at boot stage and flowering.",
+                "prevention": "Field sanitation. Destroy infected straw immediately. Wide plant spacing. Avoid excess nitrogen."
+            }
+        },
+        "cotton": {
+            "healthy": {
+                "symptoms": "Vibrant green foliage, no lesions, normal boll development, no pest damage visible.",
+                "management": "Monitor for bollworms, jassids, and mites weekly. Maintain irrigation schedule (60-90mm per season). Watch for fruiting body development.",
+                "prevention": "Pest-resistant varieties. Balanced nutrition. Proper spacing for air circulation."
+            },
+            "bacterial_blight": {
+                "symptoms": "Angular, water-soaked spots with yellow halo on leaves. Spread along veins. Affects bolls causing rot.",
+                "management": "No cure once systemic. Remove and destroy infected plants immediately. Prevent spread with copper fungicides (Bordeaux 1%).",
+                "prevention": "Use resistant varieties (MCU-5, H-274). Seed treatment with Streptomycin. Avoid wounding plants during operations."
+            },
+            "fusarium_wilt": {
+                "symptoms": "Yellowing on one side of plant, wilting despite adequate water. Brown discoloration inside stems. Progressive plant death.",
+                "management": "Remove infected plants completely (don't compost). Soil solarization (45 days in sun) kills fungal spores for next crop.",
+                "prevention": "Crop rotation (3-4 years, no Okra/Guar). Use wilt-resistant varieties. Soil drainage essential."
+            },
+            "spider_mite_damage": {
+                "symptoms": "Fine webbing on undersides, leaf stippling, bronzing. Severe infestation causes leaf drop and reduced fruiting.",
+                "management": "Spray Buprofezin (0.5%) or Emamectin benzoate (0.015%). Repeat every 5-7 days. Monitor hot-dry weather closely.",
+                "prevention": "Avoid excessive nitrogen. Sulfur dust (not with oils). Encourage predatory mites. Spray water to increase humidity."
+            }
+        }
+    }
+    
+    # Get crop-specific diseases or use default
+    crop_key = crop_name.lower().strip()
+    crop_info = disease_db.get(crop_key, {})
+    
+    # Find disease match (check for keywords)
+    for disease_key, info in crop_info.items():
+        if disease_key.replace("_", "") in disease.replace(" ", "").replace("_", ""):
+            return (
+                f"**DISEASE: {disease_label.title()}**\n\n"
+                f"SYMPTOMS:\n{info['symptoms']}\n\n"
+                f"MANAGEMENT & TREATMENT:\n{info['management']}\n\n"
+                f"PREVENTION:\n{info['prevention']}"
+            )
+    
+    # Default comprehensive response for unknown diseases
+    return (
+        f"**FINDING: {disease_label.title()}**\n\n"
+        f"STATUS: Condition detected on {crop_name.title()} crop.\n\n"
+        f"RECOMMENDED ACTIONS:\n"
+        f"1. IMMEDIATE: Inspect surrounding plants within 5m radius\n"
+        f"2. SAMPLE: Collect leaf samples for lab testing and confirmation\n"
+        f"3. TREATMENT: Consult extension officer with photos for precise diagnosis\n"
+        f"4. MONITOR: Scout field daily for disease progression\n"
+        f"5. PREVENT: Isolate affected area, do not harvest until confirmed\n\n"
+        f"STATUS: Contact agronomy specialist for definitive identification and treatment plan."
+    )
 
 
 @app.get("/")
