@@ -20,6 +20,7 @@ APP_NAME = "Apollo Krishi Rakshak Inference API"
 APP_VERSION = "1.0.0"
 MODEL_DIR = os.getenv("APOLLO_MODEL_DIR", os.path.join(os.path.dirname(__file__), "..", "models"))
 ALLOWED_ORIGINS = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",") if x.strip()]
+DEFAULT_DISEASE_CROP = os.getenv("APOLLO_DEFAULT_DISEASE_CROP", "wheat").strip().lower()
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
 app.add_middleware(
@@ -85,6 +86,27 @@ def _load_disease_assets(crop_name: str) -> Tuple[object, np.ndarray]:
     classes = np.load(classes_path, allow_pickle=True)
     disease_model_cache[key] = (model, classes)
     return model, classes
+
+
+def _select_disease_crop(preferred_crop: str) -> Tuple[str, Optional[str]]:
+    preferred = preferred_crop.lower().strip()
+    preferred_model = _model_path(f"{preferred}_disease_model.keras")
+    preferred_classes = _model_path(f"{preferred}_class_names.npy")
+    if os.path.exists(preferred_model) and os.path.exists(preferred_classes):
+        return preferred, None
+
+    fallback_model = _model_path(f"{DEFAULT_DISEASE_CROP}_disease_model.keras")
+    fallback_classes = _model_path(f"{DEFAULT_DISEASE_CROP}_class_names.npy")
+    if os.path.exists(fallback_model) and os.path.exists(fallback_classes):
+        reason = (
+            f"Disease model for '{preferred}' not found. "
+            f"Used fallback disease model '{DEFAULT_DISEASE_CROP}'."
+        )
+        return DEFAULT_DISEASE_CROP, reason
+
+    raise FileNotFoundError(
+        f"No disease model available for '{preferred}' and fallback '{DEFAULT_DISEASE_CROP}' is missing"
+    )
 
 
 def _prepare_image_bytes(image_bytes: bytes, target_size: Tuple[int, int] = (224, 224)) -> np.ndarray:
@@ -162,15 +184,19 @@ async def detect(file: UploadFile = File(...), crop: Optional[str] = Form(defaul
         else:
             crop_name, crop_conf = _predict_crop(image_tensor)
 
-        disease_label, disease_conf = _predict_disease(crop_name, image_tensor)
+        disease_crop_used, fallback_note = _select_disease_crop(crop_name)
+        disease_label, disease_conf = _predict_disease(disease_crop_used, image_tensor)
         response = {
             "crop": crop_name,
             "crop_confidence": crop_conf,
             "disease": disease_label,
             "disease_confidence": round(disease_conf, 4),
+            "disease_model_crop": disease_crop_used,
             "recommendation": _recommendation(crop_name, disease_label),
             "model_dir": os.path.abspath(MODEL_DIR),
         }
+        if fallback_note:
+            response["note"] = fallback_note
         return response
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

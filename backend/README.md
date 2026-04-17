@@ -16,6 +16,17 @@ Place the following files in `backend/models/`:
 - `<crop>_disease_model.keras` (example: `wheat_disease_model.keras`)
 - `<crop>_class_names.npy` (example: `wheat_class_names.npy`)
 
+## Core Model Pack Included In Repo
+
+The repository currently ships a working core set:
+
+- `best_crop_model.keras`
+- `crop_class_names.npy`
+- `wheat_disease_model.keras`
+- `wheat_class_names.npy`
+
+If a disease model for predicted crop is unavailable, API falls back to wheat disease model and returns a `note` field.
+
 ## Run Locally
 
 ```bash
@@ -38,6 +49,7 @@ docker run -p 8000:8000 apollo-inference-api
 
 - `APOLLO_MODEL_DIR` (optional): absolute path to model directory
 - `CORS_ORIGINS` (optional): comma-separated allowed origins
+- `APOLLO_DEFAULT_DISEASE_CROP` (optional): fallback disease model crop, default `wheat`
 
 Example:
 
