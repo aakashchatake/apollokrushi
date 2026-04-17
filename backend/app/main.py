@@ -209,7 +209,7 @@ def _predict_disease(crop_name: str, image_tensor: np.ndarray) -> Dict[str, obje
     }
 
 
-def _recommendation(crop_name: str, disease_label: str) -> str:
+def _recommendation(crop_name: str, disease_label: str, top_predictions: Optional[list] = None) -> str:
     """Comprehensive disease recommendation with symptoms, management, and prevention."""
     disease = disease_label.lower().strip()
     
@@ -240,6 +240,11 @@ def _recommendation(crop_name: str, disease_label: str) -> str:
                 "symptoms": "White to grayish powdery coating on leaves and stems. Occurs in cool, dry conditions. Reduces photosynthesis.",
                 "management": "Sulfur dust (10kg/ha) or wettable sulfur spray. Alternate with Karathane (0.1%) if sulfur resistance develops. Apply at first sign.",
                 "prevention": "Improve air circulation. Reduce nitrogen fertilizer (promotes susceptibility). Choose resistant varieties."
+            },
+            "mite": {
+                "symptoms": "Fine stippling or bronzing with tiny moving dots and possible webbing on underside of leaves.",
+                "management": "Use recommended miticide based on local advisory and rotate chemistry classes. Spray underside thoroughly.",
+                "prevention": "Avoid drought stress, reduce dust, and maintain beneficial predator populations."
             },
             "nutrient_deficiency": {
                 "symptoms": "Leaf yellowing (Nitrogen: older leaves first), purple tinting (Phosphorus), chlorosis (Iron). Stunted growth common.",
@@ -296,6 +301,52 @@ def _recommendation(crop_name: str, disease_label: str) -> str:
     # Get crop-specific diseases or use default
     crop_key = crop_name.lower().strip()
     crop_info = disease_db.get(crop_key, {})
+
+    if disease == "possible_early_stage_disease":
+        likely_lines = []
+        if top_predictions:
+            ranked = []
+            for pred in top_predictions:
+                raw = str(pred.get("label", ""))
+                norm = _normalize_disease_label(crop_name, raw)
+                conf = float(pred.get("confidence", 0.0))
+                if norm == "healthy":
+                    continue
+                ranked.append((norm, raw, conf))
+
+            ranked.sort(key=lambda x: x[2], reverse=True)
+            for idx, (norm, raw, conf) in enumerate(ranked[:3], start=1):
+                info = crop_info.get(norm)
+                if info:
+                    likely_lines.append(
+                        f"{idx}. {norm.replace('_', ' ').title()} ({conf:.2%})\n"
+                        f"   - Symptom signals: {info['symptoms']}\n"
+                        f"   - Immediate remedy: {info['management']}"
+                    )
+                else:
+                    likely_lines.append(
+                        f"{idx}. {raw} ({conf:.2%})\n"
+                        "   - Immediate remedy: Field-verify this class and apply targeted treatment only after confirmation."
+                    )
+
+        base_header = (
+            "**FINDING: Possible Early-Stage Disease (Uncertain Diagnosis)**\n\n"
+            "STATUS: The model sees dominant healthy pattern but also low-intensity disease signatures."
+        )
+        likely_section = (
+            "\n\nLIKELY CONDITIONS (RANKED):\n" + "\n".join(likely_lines)
+            if likely_lines
+            else "\n\nLIKELY CONDITIONS: No specific non-healthy class crossed minimum signal threshold."
+        )
+        action_section = (
+            "\n\nACTION PLAN (NEXT 72 HOURS):\n"
+            "1. Re-scan 3-5 leaves from different parts of the same plot.\n"
+            "2. Inspect undersides for powdery growth, mites, rust pustules, or tan lesions.\n"
+            "3. If symptoms expand, apply crop-safe fungicide/miticide per local advisory.\n"
+            "4. Record photos daily to track spread before broad spraying.\n"
+            "5. Request agronomist confirmation for final treatment decision."
+        )
+        return base_header + likely_section + action_section
     
     # Find disease match (check for keywords)
     for disease_key, info in crop_info.items():
@@ -375,7 +426,11 @@ async def detect(file: UploadFile = File(...), crop: Optional[str] = Form(defaul
             "diagnosis_quality": disease_result["diagnosis_quality"],
             "needs_human_review": disease_result["needs_human_review"],
             "disease_model_crop": disease_crop_used,
-            "recommendation": _recommendation(crop_name, str(disease_result["disease"])),
+            "recommendation": _recommendation(
+                crop_name,
+                str(disease_result["disease"]),
+                top_predictions=disease_result.get("top_predictions"),
+            ),
             "model_dir": os.path.abspath(MODEL_DIR),
         }
         notes = []
