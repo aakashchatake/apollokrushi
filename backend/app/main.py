@@ -21,6 +21,9 @@ APP_VERSION = "1.0.0"
 MODEL_DIR = os.getenv("APOLLO_MODEL_DIR", os.path.join(os.path.dirname(__file__), "..", "models"))
 ALLOWED_ORIGINS = [x.strip() for x in os.getenv("CORS_ORIGINS", "*").split(",") if x.strip()]
 DEFAULT_DISEASE_CROP = os.getenv("APOLLO_DEFAULT_DISEASE_CROP", "wheat").strip().lower()
+DISEASE_CONFIDENCE_THRESHOLD = float(os.getenv("APOLLO_DISEASE_CONFIDENCE_THRESHOLD", "0.65"))
+HEALTHY_STRICT_THRESHOLD = float(os.getenv("APOLLO_HEALTHY_STRICT_THRESHOLD", "0.93"))
+TOP_K_PREDICTIONS = int(os.getenv("APOLLO_TOP_K_PREDICTIONS", "3"))
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
 app.add_middleware(
@@ -125,13 +128,54 @@ def _predict_crop(image_tensor: np.ndarray) -> Tuple[str, float]:
     return crop_name, confidence
 
 
-def _predict_disease(crop_name: str, image_tensor: np.ndarray) -> Tuple[str, float]:
+def _predict_disease(crop_name: str, image_tensor: np.ndarray) -> Dict[str, object]:
     model, classes = _load_disease_assets(crop_name)
     preds = model.predict(image_tensor, verbose=0)[0]
-    idx = int(np.argmax(preds))
-    confidence = float(preds[idx])
-    label = str(classes[idx])
-    return label, confidence
+    top_k = max(1, min(TOP_K_PREDICTIONS, len(preds)))
+    top_indices = np.argsort(preds)[::-1][:top_k]
+    top_predictions = [
+        {
+            "label": str(classes[idx]),
+            "confidence": round(float(preds[idx]), 4),
+        }
+        for idx in top_indices
+    ]
+
+    top_1 = top_predictions[0]
+    top_1_label = str(top_1["label"])
+    top_1_conf = float(top_1["confidence"])
+    non_healthy_risk = sum(
+        float(pred["confidence"]) for pred in top_predictions if "healthy" not in str(pred["label"]).lower()
+    )
+    is_top_healthy = "healthy" in top_1_label.lower()
+
+    note = None
+    if is_top_healthy and (top_1_conf < HEALTHY_STRICT_THRESHOLD or non_healthy_risk >= 0.25):
+        final_label = "possible_early_stage_disease"
+        final_conf = round(max(non_healthy_risk, 1.0 - top_1_conf), 4)
+        note = (
+            "Healthy class was top prediction, but confidence was not strong enough. "
+            "Marked as possible early-stage disease for safer field action."
+        )
+    elif (not is_top_healthy) and top_1_conf < DISEASE_CONFIDENCE_THRESHOLD:
+        final_label = f"suspected_{top_1_label}"
+        final_conf = round(top_1_conf, 4)
+        note = "Disease signal detected with low confidence. Manual agronomy review required."
+    else:
+        final_label = top_1_label
+        final_conf = round(top_1_conf, 4)
+
+    needs_human_review = bool(note) or final_conf < DISEASE_CONFIDENCE_THRESHOLD
+    diagnosis_quality = "high" if final_conf >= 0.85 else "medium" if final_conf >= 0.65 else "low"
+
+    return {
+        "disease": final_label,
+        "disease_confidence": final_conf,
+        "top_predictions": top_predictions,
+        "needs_human_review": needs_human_review,
+        "diagnosis_quality": diagnosis_quality,
+        "note": note,
+    }
 
 
 def _recommendation(crop_name: str, disease_label: str) -> str:
@@ -263,6 +307,9 @@ def health() -> Dict[str, object]:
         "tensorflow_ready": tf is not None,
         "model_dir": os.path.abspath(MODEL_DIR),
         "core_models_present": available,
+        "disease_confidence_threshold": DISEASE_CONFIDENCE_THRESHOLD,
+        "healthy_strict_threshold": HEALTHY_STRICT_THRESHOLD,
+        "top_k_predictions": TOP_K_PREDICTIONS,
         "version": APP_VERSION,
     }
 
@@ -286,18 +333,26 @@ async def detect(file: UploadFile = File(...), crop: Optional[str] = Form(defaul
             crop_name, crop_conf = _predict_crop(image_tensor)
 
         disease_crop_used, fallback_note = _select_disease_crop(crop_name)
-        disease_label, disease_conf = _predict_disease(disease_crop_used, image_tensor)
+        disease_result = _predict_disease(disease_crop_used, image_tensor)
         response = {
             "crop": crop_name,
             "crop_confidence": crop_conf,
-            "disease": disease_label,
-            "disease_confidence": round(disease_conf, 4),
+            "disease": disease_result["disease"],
+            "disease_confidence": disease_result["disease_confidence"],
+            "top_predictions": disease_result["top_predictions"],
+            "diagnosis_quality": disease_result["diagnosis_quality"],
+            "needs_human_review": disease_result["needs_human_review"],
             "disease_model_crop": disease_crop_used,
-            "recommendation": _recommendation(crop_name, disease_label),
+            "recommendation": _recommendation(crop_name, str(disease_result["disease"])),
             "model_dir": os.path.abspath(MODEL_DIR),
         }
+        notes = []
         if fallback_note:
-            response["note"] = fallback_note
+            notes.append(fallback_note)
+        if disease_result.get("note"):
+            notes.append(str(disease_result["note"]))
+        if notes:
+            response["note"] = " ".join(notes)
         return response
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
