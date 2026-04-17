@@ -26,6 +26,7 @@ It is designed to:
 - `css/style.css` - design system and responsive styles
 - `js/data.js` - structured student and technology metadata
 - `js/main.js` - rendering, telemetry dashboard, weather integration, and AI inference workspace
+- `backend/` - production FastAPI inference service (Docker + Render config)
 
 ## Run Locally
 
@@ -47,3 +48,17 @@ Recommended:
 Suggested redirect policy:
 - Keep this portal on `apollokrushi.chatakeinnoworks.com`
 - Keep original Apollo presentation/paper site under `apollo.paper.chatakeinnoworks.com`
+
+## Backend API Service
+
+The frontend AI workspace is preconfigured to call:
+
+`https://api.apollokrushi.chatakeinnoworks.com/api/detect`
+
+Backend service source and deployment files are in:
+
+- `backend/app/main.py`
+- `backend/requirements.txt`
+- `backend/Dockerfile`
+- `backend/render.yaml`
+- `backend/README.md`

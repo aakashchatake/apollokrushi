@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: apollo-inference-api
+    env: docker
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: CORS_ORIGINS
+        value: https://apollokrushi.chatakeinnoworks.com,https://apollo.paper.chatakeinnoworks.com
