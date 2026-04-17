@@ -3,11 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Apollo Krishi Rakshak collaboration portal by Team Apollo and Chatake Innoworks.">
-  <title>Apollo Krishi Rakshak | Team Apollo Collaboration Portal</title>
+  <meta name="description" content="Apollo Krishi Rakshak is a product-grade autonomous agriculture platform with live operations dashboard, AI inference workspace, and Team Apollo collaboration modules.">
+  <meta name="keywords" content="Apollo Krishi Rakshak, agriculture AI, autonomous farming, crop disease detection, ROS2 robotics, Team Apollo">
+  <meta name="author" content="Chatake Innoworks Pvt. Ltd.">
+  <meta property="og:title" content="Apollo Krishi Rakshak | Industry-grade Autonomous Agriculture Platform">
+  <meta property="og:description" content="Live dashboards, AI inference workspace, student engineering modules, and Apollo paper-track integration.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://apollokrushi.chatakeinnoworks.com/assets/og-preview.svg">
+  <meta property="og:url" content="https://apollokrushi.chatakeinnoworks.com">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Apollo Krishi Rakshak">
+  <meta name="twitter:description" content="Autonomous agriculture platform with real-time operations experience.">
+  <meta name="twitter:image" content="https://apollokrushi.chatakeinnoworks.com/assets/og-preview.svg">
+  <title>Apollo Krishi Rakshak | Autonomous Agriculture Command Center</title>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Serif:ital@0;1&family=Sora:wght@500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -24,29 +36,104 @@
       </div>
     </a>
     <nav>
+      <a href="#ops">Live Ops</a>
+      <a href="#inference">AI Workspace</a>
       <a href="students.html">Students</a>
       <a href="technologies.html">Technologies</a>
       <a href="#roadmap">Roadmap</a>
-      <a class="btn btn-sm" href="#links">Open Ecosystem</a>
+      <a class="btn btn-sm" href="#links">Ecosystem</a>
     </nav>
   </header>
 
   <main>
     <section class="hero section reveal">
-      <p class="eyebrow">Phase 4 Collaboration Portal</p>
-      <h1>From Academic Prototype to Real-World Autonomous Agriculture Platform</h1>
+      <p class="eyebrow">Apollo Product Control Layer</p>
+      <h1>From Academic Prototype to an Industry-grade Autonomous Agriculture Platform</h1>
       <p>
-        Apollo Krishi Rakshak is the public-facing collaboration hub that unifies student contributions,
-        AI systems, and robotics roadmap under one product-grade experience.
+        Apollo Krishi Rakshak now operates as a digital command center: live telemetry simulation,
+        real weather feed, AI inference workspace, and contributor-grade modules connected to Apollo paper and presentation tracks.
       </p>
       <div class="hero-actions">
-        <a class="btn" href="students.html">View Student Contributions</a>
-        <a class="btn btn-ghost" href="technologies.html">Explore Technology Stack</a>
+        <a class="btn" href="#ops">Open Live Operations</a>
+        <a class="btn btn-ghost" href="#inference">Run AI Inference Workspace</a>
       </div>
-      <div class="metrics">
-        <article><strong>6</strong><span>Student Contributors</span></article>
-        <article><strong>8+</strong><span>Technology Streams</span></article>
-        <article><strong>3</strong><span>Program Tracks (Research, Product, IP)</span></article>
+      <div class="metrics hero-metrics">
+        <article><strong id="metric-students">6</strong><span>Student Contributors</span></article>
+        <article><strong id="metric-tech">8+</strong><span>Technology Streams</span></article>
+        <article><strong id="metric-uptime">99.4%</strong><span>Platform Uptime (Simulated)</span></article>
+        <article><strong id="metric-weather">--</strong><span>Live Weather Feed</span></article>
+      </div>
+    </section>
+
+    <section id="ops" class="section reveal">
+      <div class="section-head">
+        <h2>Live Operations Dashboard</h2>
+        <p>Real-time style monitoring for field performance, mission health, and crop risk signals.</p>
+      </div>
+      <div class="ops-grid">
+        <article class="panel telemetry-panel">
+          <div class="panel-head">
+            <h3>Field Telemetry Stream</h3>
+            <span class="pill online">Live</span>
+          </div>
+          <canvas id="telemetryChart" height="120"></canvas>
+        </article>
+
+        <article class="panel status-panel">
+          <div class="panel-head">
+            <h3>Mission Status Grid</h3>
+            <span class="pill">Auto Sync</span>
+          </div>
+          <div class="status-grid" id="statusGrid"></div>
+        </article>
+
+        <article class="panel weather-panel">
+          <div class="panel-head">
+            <h3>Live Weather Node (Solapur)</h3>
+            <span class="pill weather" id="weatherSource">Fetching</span>
+          </div>
+          <div class="weather-values">
+            <div><span>Temperature</span><strong id="tempValue">--</strong></div>
+            <div><span>Wind</span><strong id="windValue">--</strong></div>
+            <div><span>Rain Forecast</span><strong id="rainValue">--</strong></div>
+          </div>
+          <p class="muted-note">Powered by open weather API integration on page load.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="inference" class="section reveal">
+      <div class="section-head">
+        <h2>AI Inference Workspace</h2>
+        <p>Upload crop image, run browser-side pre-analysis, and optionally call deployed FastAPI inference endpoint.</p>
+      </div>
+      <div class="ops-grid inference-grid">
+        <article class="panel">
+          <h3>Inference Controls</h3>
+          <label class="field-label" for="cropInput">Crop Name</label>
+          <input id="cropInput" class="text-input" type="text" placeholder="Example: wheat">
+          <label class="field-label" for="apiInput">Inference API Endpoint</label>
+          <input id="apiInput" class="text-input" type="text" placeholder="https://api.apollokrushi.chatakeinnoworks.com/api/detect">
+          <label class="upload-box" for="imageInput">
+            <span>Upload Leaf / Crop Image</span>
+            <input id="imageInput" type="file" accept="image/*">
+          </label>
+          <div class="hero-actions">
+            <button id="runInferenceBtn" class="btn" type="button">Run AI Analysis</button>
+            <button id="runDemoBtn" class="btn btn-ghost" type="button">Run Demo Mode</button>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h3>Result Console</h3>
+          <div class="preview-wrap">
+            <img id="previewImage" alt="Uploaded crop preview" hidden>
+            <div id="previewPlaceholder">Image preview will appear here.</div>
+          </div>
+          <div id="resultConsole" class="result-console">
+            Awaiting input. Upload an image and run AI analysis.
+          </div>
+        </article>
       </div>
     </section>
 
@@ -82,6 +169,16 @@
           <p>Publication-oriented track for journals, technical papers, and submission-ready documents.</p>
           <a href="https://apollo.paper.chatakeinnoworks.com" target="_blank" rel="noopener noreferrer">Open Paper Track</a>
         </article>
+        <article class="card">
+          <h3>Full Live Detection Product</h3>
+          <p>Launch the full-stack crop detection product with frontend and backend integration.</p>
+          <a href="technologies.html" rel="noopener noreferrer">Open Technology Launchpad</a>
+        </article>
+        <article class="card">
+          <h3>Collaboration Intelligence</h3>
+          <p>Track student ownership, module maturity, and deployment readiness from one place.</p>
+          <a href="students.html" rel="noopener noreferrer">Open Team Apollo Workspace</a>
+        </article>
       </div>
     </section>
 
@@ -108,9 +205,10 @@
 
   <footer class="site-footer">
     <p>Team Apollo | Shri Siddheshwar Women's Polytechnic, Solapur | Chatake Innoworks Pvt. Ltd.</p>
-    <p>Suggested domains: apollokrushi.chatakeinnoworks.com or apollo.chatakeinnoworks.com</p>
+    <p>Product Domain: apollokrushi.chatakeinnoworks.com | Paper and Presentation Track: apollo.paper.chatakeinnoworks.com</p>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="js/data.js"></script>
   <script src="js/main.js"></script>
 </body>

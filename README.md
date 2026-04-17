@@ -9,6 +9,8 @@ This portal is intentionally separate from the original student repository and e
 It is designed to:
 - showcase each student contribution individually,
 - showcase each technology stream individually,
+- expose live operations modules (telemetry, weather, mission status),
+- provide an AI inference workspace with endpoint integration and demo fallback,
 - connect visitors to Apollo presentation and paper tracks,
 - provide roadmap visibility toward ROS2, rover, lander, and autonomous agriculture expansion.
 
@@ -19,9 +21,11 @@ It is designed to:
 - `student.html?id=<student-id>` - individual student profile page
 - `technologies.html` - all technology listing
 - `technology.html?id=<tech-id>` - individual technology page
+- `assets/favicon.svg` - product favicon
+- `assets/og-preview.svg` - social link preview image
 - `css/style.css` - design system and responsive styles
 - `js/data.js` - structured student and technology metadata
-- `js/main.js` - rendering and page interactions
+- `js/main.js` - rendering, telemetry dashboard, weather integration, and AI inference workspace
 
 ## Run Locally
 
@@ -38,8 +42,8 @@ Then open: `http://localhost:8080`
 
 Recommended:
 - Primary product domain: `apollokrushi.chatakeinnoworks.com`
-- Canonical Apollo umbrella domain: `apollo.chatakeinnoworks.com`
+- Apollo paper and presentation domain: `apollo.paper.chatakeinnoworks.com`
 
 Suggested redirect policy:
 - Keep this portal on `apollokrushi.chatakeinnoworks.com`
-- Keep original Apollo presentation/paper site under `apollo.chatakeinnoworks.com`
+- Keep original Apollo presentation/paper site under `apollo.paper.chatakeinnoworks.com`
