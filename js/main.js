@@ -271,6 +271,135 @@ function mockInference(fileName, cropInput) {
   };
 }
 
+function normalizeLabel(label) {
+  const raw = String(label || "").toLowerCase().replace(/[-\s]+/g, "_");
+  if (raw.includes("healthy")) return "healthy";
+  if (raw.includes("rust")) return "rust";
+  if (raw.includes("powder") && raw.includes("mildew")) return "powdery_mildew";
+  if (raw.includes("tan") && raw.includes("spot")) return "tan_spot";
+  if (raw.includes("mite")) return "mite";
+  if (raw.includes("deficiency") || raw.includes("nutrient")) return "nutrient_deficiency";
+  if (raw.includes("blight")) return "blight";
+  return raw;
+}
+
+function buildBilingualRecommendation(result) {
+  const crop = String(result.crop || "crop").toLowerCase();
+  const disease = normalizeLabel(result.disease || "");
+  const top = Array.isArray(result.top_predictions) ? result.top_predictions : [];
+
+  const en = {
+    powdery_mildew: {
+      symptoms: "White to gray powdery growth on leaves, often starting in patches.",
+      treatment: "Apply crop-safe fungicide and ensure full leaf coverage, especially undersides.",
+      prevention: "Improve air circulation, avoid excessive late nitrogen, and monitor humidity spikes."
+    },
+    mite: {
+      symptoms: "Leaf stippling/bronzing with tiny moving dots and possible webbing under leaves.",
+      treatment: "Use recommended miticide with rotation of active ingredients; spray undersides thoroughly.",
+      prevention: "Reduce plant stress, manage dust, and preserve beneficial predators."
+    },
+    rust: {
+      symptoms: "Orange-brown pustules on leaves, spreading rapidly under humid weather.",
+      treatment: "Use labeled triazole/strobilurin fungicide as per local advisory.",
+      prevention: "Prefer resistant varieties and continue field scouting every 2-3 days in risky weather."
+    },
+    tan_spot: {
+      symptoms: "Tan lesions with yellow halo and dark center.",
+      treatment: "Targeted foliar fungicide and residue-borne risk management.",
+      prevention: "Crop rotation and residue management reduce recurrence."
+    },
+    nutrient_deficiency: {
+      symptoms: "Uneven chlorosis or stunted growth pattern.",
+      treatment: "Run soil/tissue test and correct nutrient plan based on stage.",
+      prevention: "Balanced fertilization and pH-aware nutrient program."
+    }
+  };
+
+  const mrDisease = {
+    possible_early_stage_disease: "प्रारंभिक टप्प्यातील संभाव्य रोग",
+    powdery_mildew: "पावडरी मिल्ड्यू",
+    mite: "माइट प्रादुर्भाव",
+    rust: "रस्ट",
+    tan_spot: "टॅन स्पॉट",
+    nutrient_deficiency: "पोषक तुटवडा",
+    healthy: "निरोगी"
+  };
+
+  const candidates = top
+    .map((p) => ({ label: normalizeLabel(p.label), raw: p.label, confidence: Number(p.confidence || 0) }))
+    .filter((p) => p.label !== "healthy")
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 3);
+
+  const likelyEn = candidates
+    .map((p, i) => {
+      const k = en[p.label];
+      if (!k) return `${i + 1}. ${p.raw} (${(p.confidence * 100).toFixed(2)}%) - verify in field before treatment.`;
+      return (
+        `${i + 1}. ${p.label.replace(/_/g, " ")} (${(p.confidence * 100).toFixed(2)}%)\n` +
+        `   - Symptoms: ${k.symptoms}\n` +
+        `   - Treatment: ${k.treatment}`
+      );
+    })
+    .join("\n");
+
+  const likelyMr = candidates
+    .map((p, i) => `${i + 1}. ${mrDisease[p.label] || p.raw} (${(p.confidence * 100).toFixed(2)}%)`)
+    .join("\n");
+
+  const recommendation_en = disease === "possible_early_stage_disease"
+    ? [
+      "FINDING: Possible early-stage disease (uncertain).",
+      `Crop: ${crop}. The model is biased to healthy but still shows weak disease signals.`,
+      "Likely conditions (ranked):",
+      likelyEn || "No clear non-healthy class crossed threshold; keep close monitoring.",
+      "Action plan (next 72h):",
+      "1. Re-scan 3-5 leaves from different plants/angles.",
+      "2. Check underside for powdery growth, mites, rust pustules.",
+      "3. If spread increases, apply locally recommended crop-safe treatment.",
+      "4. Keep photo log daily and seek agronomist confirmation."
+    ].join("\n\n")
+    : String(result.recommendation || "");
+
+  const recommendation_mr = disease === "possible_early_stage_disease"
+    ? [
+      "निदान: प्रारंभिक टप्प्यातील संभाव्य रोग (अनिश्चित).",
+      "स्थिती: मॉडेलने निरोगी वर्ग जास्त दाखवला, पण कमी पातळीचे रोग संकेत दिसत आहेत.",
+      "संभाव्य रोग (क्रमवारी):",
+      likelyMr || "विशिष्ट रोग संकेत कमी आहेत; नियमित निरीक्षण आवश्यक.",
+      "पुढील 72 तासांची कृती योजना:",
+      "1. वेगवेगळ्या झाडांवरील 3-5 पाने पुन्हा स्कॅन करा.",
+      "2. पानाखाली पावडरी थर, माइट, रस्ट ठिपके तपासा.",
+      "3. लक्षणे वाढल्यास स्थानिक सल्ल्यानुसार सुरक्षित फवारणी करा.",
+      "4. दररोज फोटो नोंद ठेवा व कृषी तज्ञांचा सल्ला घ्या."
+    ].join("\n\n")
+    : "सध्याच्या निदानासाठी तपशील उपलब्ध नाही. कृपया तज्ञांचा सल्ला घ्या.";
+
+  return { recommendation_en, recommendation_mr };
+}
+
+function enrichLiveResult(result) {
+  if (!result || typeof result !== "object") return result;
+
+  const genericUncertain =
+    String(result.disease || "") === "possible_early_stage_disease" &&
+    String(result.recommendation || "").includes("RECOMMENDED ACTIONS");
+
+  if (genericUncertain || !result.recommendation_mr || !result.recommendation_en) {
+    const bilingual = buildBilingualRecommendation(result);
+    return {
+      ...result,
+      recommendation_en: bilingual.recommendation_en,
+      recommendation_mr: bilingual.recommendation_mr,
+      recommendation: bilingual.recommendation_en,
+      client_enhanced: true
+    };
+  }
+
+  return result;
+}
+
 function mountInferenceWorkspace() {
   const imageInput = document.getElementById("imageInput");
   const cropInput = document.getElementById("cropInput");
@@ -339,7 +468,8 @@ function mountInferenceWorkspace() {
       }
 
       const result = await response.json();
-      resultConsole.textContent = JSON.stringify(result, null, 2);
+      const enriched = enrichLiveResult(result);
+      resultConsole.textContent = JSON.stringify(enriched, null, 2);
     } catch (error) {
       const fallback = mockInference(selectedFile.name, cropInput ? cropInput.value : "");
       resultConsole.textContent = `Live endpoint failed: ${error.message}\n\nFallback demo result:\n${JSON.stringify(fallback, null, 2)}`;
